@@ -20,7 +20,7 @@ body{font-family:NotoSansMono;}
 
 textarea#edit{padding-top:4px; font-size:16px;
 	position:relative; left:-12px;
-	font-family:NotoSansMono;}
+	font-family:NotoSansMono; tab-size:4;}
 </style>
 </head>
 <body>
@@ -51,22 +51,26 @@ edit.onkeydown = function(e){
 		if (e.ctrlKey) {
 			return true
 		}
-		var text = edit.innerHTML
+		var text = edit.value
 		var cursor = edit.selectionStart
 		var scroll = edit.scrollTop
 		var s = text.substring(0, cursor)
 		var e = text.substring(cursor)
-		edit.innerHTML = s + "\t" + e
+		edit.value = s + "\t" + e
 		edit.selectionStart = cursor + 1
 		edit.selectionEnd = cursor + 1
 		edit.scrollTop = scroll
-		// editarea.innerHTML += "\t"
 		return false
 		break
 	}
+	updateLineNum()
+}
+edit.onkeyup = function(){
+	updateLineNum()
 }
 var linenum = document.getElementById("linenum")
-function updateLineNum(len){
+function updateLineNum(){
+	len = (edit.value.match(/\n/g)||[]).length+1
 	linenum.innerHTML = ''
 	maxlen = (len + '').length
 	for(let n = 1; n <= len; n++){
@@ -90,7 +94,7 @@ window.onload = function(){
 	sync()
 	edit.onclick()
 	edit.focus()
-	updateLineNum((edit.value.match(/\n/g)||[]).length+1)
+	updateLineNum()
 }
 
 edit.onscroll = function(e){
@@ -103,7 +107,7 @@ function get(){
 	xmlhttp.onload = function(){
 		var res = xmlhttp.responseText // 受信した文字列
 		edit.value = res
-		updateLineNum((edit.value.match(/\n/g)||[]).length+1)
+		updateLineNum()
 	}
 	xmlhttp.open("GET", "get", true)
 	xmlhttp.send("get")
@@ -115,7 +119,7 @@ function sync(){
 		var res = xmlhttp.responseText // 受信した文字列
 		console.log(res)
 		edit.value = res
-		updateLineNum((edit.value.match(/\n/g)||[]).length+1)
+		updateLineNum()
 		sync()
 	}
 	xmlhttp.open("GET", "wait", true)

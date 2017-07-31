@@ -1,2 +1,7 @@
-a sync nose
-text
+package main
+
+import "fmt"
+
+func main(){
+	fmt.Println("json")
+}

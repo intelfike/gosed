@@ -105,10 +105,10 @@ func init() {
 
 func handleFunc(path, method string, handler func(http.ResponseWriter, *http.Request)) {
 	http.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
-		if !strings.HasPrefix(r.RemoteAddr, "127.0.0.1") {
-			fmt.Fprint(w, "あなたにアクセス権はありません！")
-			return
-		}
+		// if !strings.HasPrefix(r.RemoteAddr, "127.0.0.1") {
+		// 	fmt.Fprint(w, "あなたにアクセス権はありません！")
+		// 	return
+		// }
 		if r.Method != method {
 			fmt.Fprint(w, r.Method, " is bad method")
 			return
