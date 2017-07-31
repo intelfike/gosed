@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>go edit</title>
+<style>
+@font-face {
+	font-family: 'NotoSansMono';
+	src: url('NotoSansCJKjp-hinted/NotoSansMonoCJKjp-Regular.otf');
+}
+
+body{font-family:NotoSansMono;}
+
+#editform{border: solid black 1px;}
+
+#linenum{padding-top:4px; float:left; 
+	overflow-y:scroll; font-size:16px;}
+
+/*.num{border-top:solid black 1px;}*/
+
+textarea#edit{padding-top:4px; font-size:16px;
+	position:relative; left:-12px;
+	font-family:NotoSansMono;}
+</style>
+</head>
+<body>
+	<form id="editform">
+		<div id="linenum"></div>
+		<textarea name="" id="edit" class="edit" cols="100" rows="20"></textarea>
+	</form>
+</body>
+<script>
+var edit = document.getElementById("edit")
+edit.onkeydown = function(e){
+	console.log(e)
+	switch(e.code){	
+	case "KeyS":
+		if (e.ctrlKey) {
+			console.log("ctrl+s")
+			var xmlhttp = new XMLHttpRequest()
+			xmlhttp.onload = function(){
+				var res=xmlhttp.responseText // 受信した文字列
+			}
+			xmlhttp.open("POST", "save", true)
+			// xmlhttp.setRequestHeader('Content-Type','application/x-www-form-urlencoded')
+			xmlhttp.send(edit.value)
+			return false
+		}
+		break
+	case "Tab":
+		if (e.ctrlKey) {
+			return true
+		}
+		var text = edit.innerHTML
+		var cursor = edit.selectionStart
+		var scroll = edit.scrollTop
+		var s = text.substring(0, cursor)
+		var e = text.substring(cursor)
+		edit.innerHTML = s + "\t" + e
+		edit.selectionStart = cursor + 1
+		edit.selectionEnd = cursor + 1
+		edit.scrollTop = scroll
+		// editarea.innerHTML += "\t"
+		return false
+		break
+	}
+}
+var linenum = document.getElementById("linenum")
+function updateLineNum(len){
+	linenum.innerHTML = ''
+	maxlen = (len + '').length
+	for(let n = 1; n <= len; n++){
+		// スペースを挟み込む
+		var num = '' + n
+		var numlen = num.length
+		for(let nn = 0; nn < maxlen - numlen; nn++){
+			num = '&nbsp;'+num
+		}
+		linenum.innerHTML += '<div class="num">'+num+'</div>'
+	}
+}
+
+edit.onclick = function(e){
+	linenum.style.height = edit.offsetHeight - 4 + "px"
+}
+edit.onmousemove = edit.onclick
+// 初期化処理
+window.onload = function(){
+	get()
+	sync()
+	edit.onclick()
+	edit.focus()
+	updateLineNum((edit.value.match(/\n/g)||[]).length+1)
+}
+
+edit.onscroll = function(e){
+	linenum.scrollTop = edit.scrollTop
+}
+
+// 待たずに取ってくる
+function get(){
+	var xmlhttp = new XMLHttpRequest()
+	xmlhttp.onload = function(){
+		var res = xmlhttp.responseText // 受信した文字列
+		edit.value = res
+		updateLineNum((edit.value.match(/\n/g)||[]).length+1)
+	}
+	xmlhttp.open("GET", "get", true)
+	xmlhttp.send("get")
+}
+
+function sync(){
+	var xmlhttp = new XMLHttpRequest()
+	xmlhttp.onload = function(){
+		var res = xmlhttp.responseText // 受信した文字列
+		console.log(res)
+		edit.value = res
+		updateLineNum((edit.value.match(/\n/g)||[]).length+1)
+		sync()
+	}
+	xmlhttp.open("GET", "wait", true)
+	xmlhttp.send("")
+}
+
+</script>
+</html>
