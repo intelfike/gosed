@@ -31,19 +31,42 @@ textarea#edit{padding-top:4px; font-size:16px;
 </body>
 <script>
 var edit = document.getElementById("edit")
+function save(){
+	var xmlhttp = new XMLHttpRequest()
+	xmlhttp.onload = function(){
+		var res=xmlhttp.responseText // 受信した文字列
+	}
+	xmlhttp.open("POST", "save", true)
+	// xmlhttp.setRequestHeader('Content-Type','application/x-www-form-urlencoded')
+	xmlhttp.send("")
+}
+// テキストを更新するときはこれを使う
+function updateEdit(text){
+	var cursor = edit.selectionStart
+	var scroll = edit.scrollTop
+	edit.value = text
+	edit.selectionStart = cursor
+	edit.selectionEnd = cursor
+	updateLineNum()
+}
+function memsend(){
+	// データを同期する
+	var xmlhttp = new XMLHttpRequest()
+	xmlhttp.onload = function(){
+		var res=xmlhttp.responseText // 受信した文字列
+	}
+	xmlhttp.open("POST", "mem/push", true)
+	xmlhttp.send(edit.value)
+}
+var timeouter
 edit.onkeydown = function(e){
 	console.log(e)
+	
 	switch(e.code){	
 	case "KeyS":
 		if (e.ctrlKey) {
 			console.log("ctrl+s")
-			var xmlhttp = new XMLHttpRequest()
-			xmlhttp.onload = function(){
-				var res=xmlhttp.responseText // 受信した文字列
-			}
-			xmlhttp.open("POST", "save", true)
-			// xmlhttp.setRequestHeader('Content-Type','application/x-www-form-urlencoded')
-			xmlhttp.send(edit.value)
+			save()
 			return false
 		}
 		break
@@ -66,6 +89,8 @@ edit.onkeydown = function(e){
 	updateLineNum()
 }
 edit.onkeyup = function(){
+	clearTimeout(timeouter)
+	timeouter = setTimeout(memsend, 500)
 	updateLineNum()
 }
 var linenum = document.getElementById("linenum")
@@ -90,8 +115,9 @@ edit.onclick = function(e){
 edit.onmousemove = edit.onclick
 // 初期化処理
 window.onload = function(){
-	get()
-	sync()
+	pull()
+	// file_sync()
+	mem_sync()
 	edit.onclick()
 	edit.focus()
 	updateLineNum()
@@ -102,29 +128,38 @@ edit.onscroll = function(e){
 }
 
 // 待たずに取ってくる
-function get(){
+function pull(){
 	var xmlhttp = new XMLHttpRequest()
 	xmlhttp.onload = function(){
 		var res = xmlhttp.responseText // 受信した文字列
 		edit.value = res
 		updateLineNum()
 	}
-	xmlhttp.open("GET", "get", true)
-	xmlhttp.send("get")
+	xmlhttp.open("GET", "pull", true)
+	xmlhttp.send("pull")
 }
 
-function sync(){
+// function file_sync(){
+// 	var xmlhttp = new XMLHttpRequest()
+// 	xmlhttp.onload = function(){
+// 		var res = xmlhttp.responseText // 受信した文字列
+// 		edit.value = res
+// 		updateLineNum()
+// 		file_sync()
+// 	}
+// 	xmlhttp.open("GET", "wait", true)
+// 	xmlhttp.send("")
+// }
+function mem_sync(){
 	var xmlhttp = new XMLHttpRequest()
 	xmlhttp.onload = function(){
 		var res = xmlhttp.responseText // 受信した文字列
-		console.log(res)
-		edit.value = res
-		updateLineNum()
-		sync()
+		updateEdit(res)
+		console.log('sync wait')
+		mem_sync()
 	}
-	xmlhttp.open("GET", "wait", true)
-	xmlhttp.send("")
+	xmlhttp.open("GET", "mem/wait", true)
+	xmlhttp.send("")	
 }
-
 </script>
 </html>

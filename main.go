@@ -3,10 +3,11 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/intelfike/checkmodfile"
@@ -18,7 +19,10 @@ var (
 )
 
 var (
-	files = map[string]*checkmodfile.File{}
+	files      = map[string]*checkmodfile.File{}
+	masterText []byte
+	prevText   []byte
+	mu         sync.Mutex
 )
 
 func init() {
@@ -34,6 +38,11 @@ func init() {
 		"index.html",
 		"NotoSansCJKjp-hinted/NotoSansMonoCJKjp-Regular.otf",
 	)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	masterText, err := files[*filename].GetBytes()
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -59,47 +68,66 @@ func init() {
 			return
 		}
 		defer f.Close()
-		defer r.Body.Close()
-		io.Copy(f, r.Body)
+		f.Write(masterText)
 		w.Write([]byte("Successful"))
 	})
 
 	// 編集中のデータをメモリ上で共有する
-	handleFunc("/sync", http.MethodPost, func(w http.ResponseWriter, r *http.Request) {
-
+	handleFunc("/mem/push", http.MethodPost, func(w http.ResponseWriter, r *http.Request) {
+		defer r.Body.Close()
+		b, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			fmt.Fprint(w, err)
+			return
+		}
+		mu.Lock()
+		masterText = b
+		mu.Unlock()
 	})
 
-	// ファイルに保存されたデータを共有する
-	handleFunc("/wait", http.MethodGet, func(w http.ResponseWriter, r *http.Request) {
+	// メモリの変更があったら返信
+	handleFunc("/mem/wait", http.MethodGet, func(w http.ResponseWriter, r *http.Request) {
 		for {
-			time.Sleep(time.Second / 5)
-			latest, err := files[*filename].IsLatest()
-			if err != nil {
-				fmt.Fprintln(w, err)
-				return
-			}
-			if latest {
+			if string(prevText) == string(masterText) {
+				time.Sleep(time.Second / 2)
 				continue
 			}
-			b, err := files[*filename].GetBytes()
-			if err != nil {
-				fmt.Println(err)
-				fmt.Fprintln(w, err)
-				return
-			}
-			w.Write(b)
-			return
+			w.Write(masterText)
+			go func() {
+				time.Sleep(time.Second / 2)
+				prevText = masterText
+			}()
+			time.Sleep(time.Second / 5)
+			break
 		}
 	})
 
+	// // ファイルに保存されたデータを共有する
+	// handleFunc("/wait", http.MethodGet, func(w http.ResponseWriter, r *http.Request) {
+	// 	for {
+	// 		time.Sleep(time.Second / 5)
+	// 		latest, err := files[*filename].IsLatest()
+	// 		if err != nil {
+	// 			fmt.Fprintln(w, err)
+	// 			return
+	// 		}
+	// 		if latest {
+	// 			continue
+	// 		}
+	// 		b, err := files[*filename].GetBytes()
+	// 		if err != nil {
+	// 			fmt.Println(err)
+	// 			fmt.Fprintln(w, err)
+	// 			return
+	// 		}
+	// 		w.Write(b)
+	// 		return
+	// 	}
+	// })
+
 	// 待たずにファイル内容を取ってくる
-	handleFunc("/get", http.MethodGet, func(w http.ResponseWriter, r *http.Request) {
-		b, err := files[*filename].GetBytes()
-		if err != nil {
-			fmt.Fprintln(w, err)
-			return
-		}
-		w.Write(b)
+	handleFunc("/pull", http.MethodGet, func(w http.ResponseWriter, r *http.Request) {
+		w.Write(masterText)
 	})
 }
 
