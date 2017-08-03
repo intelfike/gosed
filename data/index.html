@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>go edit</title>
+<style>
+@font-face {
+	font-family: 'NotoSansMono';
+	src: url('NotoSansCJKjp-hinted/NotoSansMonoCJKjp-Regular.otf');
+}
+
+body{font-family:NotoSansMono;}
+
+header{display: flex;}
+
+#editform{border: solid black 1px;
+	display: flex;}
+
+#linenum{padding-top:4px; float:left; 
+	overflow-y:scroll; font-size:16px;
+	flex-shrink:0;}
+
+/*.num{border-top:solid black 1px;}*/
+
+textarea#edit{padding-top:4px; font-size:16px;
+	position:relative; left:-12px;
+	font-family:NotoSansMono; tab-size:4;
+	overflow:scroll; background-color:#efefef;
+	flex-shrink: 1;
+	width: 100%;
+	height: 512px;
+}
+
+#files{
+	display: flex;
+	flex-direction: row;
+}
+#files .file{
+	width: 128px;
+	text-align: right;
+	margin-right: 4px;
+	padding-right: 4px;
+	background-color: #efefef;
+	border-top: solid #000000 1px;
+ 	border-right: solid #000000 1px;
+ 	border-top-right-radius: 16px;
+}
+#files .file#selected{
+	background-color: #ffd875;
+}
+</style>
+</head>
+<body>
+	<header>
+		<button id="assign">編集者になる</button>
+		<select id="users"></select>
+	</header>
+	<div id="files" style="display:flex;"></div>
+	<form id="editform">
+		<div id="linenum"></div>
+		<textarea name="" id="edit" class="edit" wrap="off" readonly></textarea>
+	</form>
+</body>
+<script src="data/script.js"></script>
+</html>
