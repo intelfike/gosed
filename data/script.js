@@ -16,7 +16,7 @@ const init = ()=>{
 function must_input_user(){
 	user = localStorage.getItem('user')
 	if(user != null){
-		document.cookie = "user="+user
+		document.cookie = "user="+encodeURIComponent(user)
 		init()
 		return
 	}
@@ -38,7 +38,7 @@ function must_input_user(){
 		console.log(res)
 		if(res == "Successful"){
 			localStorage.setItem('user', user)
-			document.cookie = "user="+user
+			document.cookie = "user="+encodeURIComponent(user)
 			init()
 			return
 		}
@@ -56,8 +56,9 @@ assign_button.onclick = ()=>{
 	assign_send(user)
 }
 
+// ファイルの表示を切り替える
 function switch_file(obj){
-	document.cookie = "file="+obj.innerText
+	document.cookie = "file="+encodeURIComponent(obj.innerText)
 	files = document.getElementsByClassName('file')
 	for(let n = 0; n < files.length; n++){
 		files[n].id = ""
@@ -166,7 +167,7 @@ function assign_pull(){
 	xmlhttp.onload = function(){
 		var res = xmlhttp.responseText // 受信した文字列
 		editor = res
-		console.log(editor)
+		check_user_radio(editor)
 		editable(editor == user)
 	}
 	xmlhttp.open("GET", "user/assign/pull", true)
@@ -177,7 +178,7 @@ function assign_wait(){
 	xmlhttp.onload = function(){
 		var res = xmlhttp.responseText // 受信した文字列
 		editor = res
-		console.log(editor)
+		check_user_radio(editor)
 		editable(editor == user)
 		assign_wait()
 	}
@@ -231,5 +232,14 @@ const editable = (bool)=>{
 		edit.style.backgroundColor = "#FFD"
 	}else{
 		edit.style.backgroundColor = "#efefef"
+	}
+}
+
+function check_user_radio(p){
+	var users = document.getElementsByClassName("user")
+	for(let n = 0; n < users.length; n++){
+		if(users[n].value == p){
+			users[n].checked = true
+		}
 	}
 }
