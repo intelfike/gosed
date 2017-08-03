@@ -12,6 +12,7 @@
 body{font-family:NotoSansMono;}
 
 header{display: flex;}
+main{margin-top:8px;}
 
 #editform{border: solid black 1px;
 	display: flex;}
@@ -55,11 +56,13 @@ textarea#edit{padding-top:4px; font-size:16px;
 		<button id="assign">編集者になる</button>
 		<div id="users"></div>
 	</header>
-	<div id="files" style="display:flex;"></div>
-	<form id="editform">
-		<div id="linenum"></div>
-		<textarea name="" id="edit" class="edit" wrap="off" readonly></textarea>
-	</form>
+	<main>
+		<div id="files" style="display:flex;"></div>
+		<form id="editform">
+			<div id="linenum"></div>
+			<textarea name="" id="edit" class="edit" wrap="off" readonly></textarea>
+		</form>
+	</main>
 </body>
 <script src="data/script.js"></script>
 </html>
