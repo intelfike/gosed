@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -26,13 +27,16 @@ var (
 	masterText   []byte
 	prevText     []byte
 	mu           sync.Mutex
-	editor       User
+	editor       = new(User)
 	editorChange bool
-	users        = map[string]User{}
+	users        = map[string]*User{}
 )
 
 type User struct {
-	Name string
+	Name          string
+	AssignChanged bool
+	MemChanged    map[string]bool // ファイル名をキーに、変更があっったか
+	UsersChanged  bool
 }
 
 func init() {
@@ -83,22 +87,17 @@ func init() {
 				}
 
 				// cookieで届いたユーザー情報を記録
-				user, err := r.Cookie("user")
+				userName, err := getCookie(r, "user")
 				if err == nil {
-					userName, _ := url.PathUnescape(user.Value)
-					users[userName] = User{Name: userName}
+					users[userName] = &User{
+						Name:          userName,
+						UsersChanged:  true,
+						AssignChanged: true,
+					}
 				}
-				// ユーザーのリストを表示する
-				html := ""
-				for k, _ := range users {
-					html += `<label>
-						<input type="radio" name="r1" class="user" value="` + k + `" onclick="assign_send('` + k + `')">` + k + `
-						</label>`
-				}
-				doc.Find("#users").SetHtml(html)
 
 				// ファイルのリストを表示する
-				html = ""
+				html := ""
 				first := true
 				for k, _ := range editFiles {
 					selected := ""
@@ -146,7 +145,11 @@ func init() {
 			mes = "Successful"
 			fmt.Println("regist user:", name)
 		}
-		users[name] = User{Name: name}
+		users[name] = &User{
+			Name:          name,
+			UsersChanged:  true,
+			AssignChanged: true,
+		}
 		w.Write([]byte(mes))
 	})
 
@@ -160,23 +163,28 @@ func init() {
 		}
 		name := string(b)
 		editor = users[name]
-		editorChange = true
+		for _, v := range users {
+			v.AssignChanged = true
+		}
+		// editorChange = true
 		w.Write([]byte("Successful"))
 	})
-	handleFunc("/user/assign/pull", http.MethodGet, func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(editor.Name))
-	})
 	handleFunc("/user/assign/wait", http.MethodGet, func(w http.ResponseWriter, r *http.Request) {
+		fmt.Println(r.Cookies())
+		name, err := getCookie(r, "user")
+		if err != nil {
+			fmt.Println("userのクッキーが正しくないです")
+			fmt.Fprint(w, "userのクッキーが正しくないです")
+			return
+		}
+		user := users[name]
+		// fmt.Println(users, name, user)
 		for {
-			if !editorChange {
-				time.Sleep(time.Second)
+			time.Sleep(time.Second)
+			if !user.AssignChanged {
 				continue
 			}
-			go func() {
-				time.Sleep(time.Second)
-				editorChange = false
-			}()
-			time.Sleep(time.Second / 2)
+			user.AssignChanged = false
 			w.Write([]byte(editor.Name))
 			break
 		}
@@ -184,13 +192,13 @@ func init() {
 
 	// 送られてきたデータを保存する
 	handleFunc("/save", http.MethodPost, func(w http.ResponseWriter, r *http.Request) {
-		file, err := r.Cookie("file")
+		file, err := getCookie(r, "file")
 		if err != nil {
 			fmt.Fprint(w, err)
 			fmt.Println("save error:", err)
 			return
 		}
-		f, ok := editFiles[file.Value]
+		f, ok := editFiles[file]
 		if !ok {
 			fmt.Println(file, "そんなものはない")
 			return
@@ -202,7 +210,6 @@ func init() {
 
 	// 編集中のデータをメモリ上で共有する
 	handleFunc("/mem/push", http.MethodPost, func(w http.ResponseWriter, r *http.Request) {
-
 		// Bodyから編集済みテキストデータを取ってくる
 		defer r.Body.Close()
 		b, err := ioutil.ReadAll(r.Body)
@@ -225,14 +232,15 @@ func init() {
 		f.Body = b
 		mu.Unlock()
 		// メモリ情報を一時ファイルに書き出すのを並列して実行
+		name, err := getCookie(r, "user")
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
 		go func() {
-			name, err := getCookie(r, "user")
-			if err != nil {
-				fmt.Println(err)
-				return
-			}
-			os.Mkdir("tmp/"+name, 0777)
-			tmpfile, err := os.Create("tmp/" + name + "/" + file + ".tmp")
+			dir, _ := filepath.Split(file)
+			os.MkdirAll("tmp/"+name+"/"+dir, 0777)
+			tmpfile, err := os.Create("tmp/" + name + "/" + file + ".backup")
 			if err != nil {
 				fmt.Println(err)
 				return
@@ -247,7 +255,7 @@ func init() {
 		file, err := getCookie(r, "file")
 		if err != nil {
 			fmt.Fprint(w, err)
-			fmt.Println("/mem/push error:", err)
+			fmt.Println("/mem/wait error:", err)
 			return
 		}
 		f, ok := editFiles[file]
@@ -288,8 +296,33 @@ func init() {
 		}
 		w.Write(f.Body)
 	})
+
+	handleFunc("/users/wait", http.MethodGet, func(w http.ResponseWriter, r *http.Request) {
+		name, err := getCookie(r, "user")
+		if err != nil {
+			fmt.Println("/users/wait:", name)
+			return
+		}
+		user := users[name]
+		for {
+			time.Sleep(time.Second)
+			if !user.UsersChanged {
+				continue
+			}
+			// ユーザーのリストを表示する
+			html := ""
+			for k, _ := range users {
+				html += `<label>
+						<input type="radio" name="r1" class="user" value="` + k + `" onclick="assign_send('` + k + `')">` + k + `
+						</label>`
+			}
+			w.Write([]byte(html))
+			break
+		}
+	})
 }
 
+// クッキーをURLデコードして取得する
 func getCookie(r *http.Request, key string) (string, error) {
 	cookie, err := r.Cookie(key)
 	if err != nil {

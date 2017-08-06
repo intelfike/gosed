@@ -1,13 +1,12 @@
-
 var editor = ""
 var user = ""
 // 初期化
 const init = ()=>{
 	editable(false)
-	assign_pull()
 	assign_wait()
 	mem_pull()
 	mem_wait()
+	users_wait()
 	edit.onclick()
 	edit.focus()
 	updateLineNum()
@@ -38,6 +37,7 @@ function must_input_user(){
 		console.log(res)
 		if(res == "Successful"){
 			localStorage.setItem('user', user)
+			console.log("user=" + encodeURIComponent(user))
 			document.cookie = "user="+encodeURIComponent(user)
 			init()
 			return
@@ -91,7 +91,6 @@ edit.onkeydown = function(e){
 	if(editor != user){
 		return
 	}
-	
 	switch(e.code){	
 	case "KeyS":
 		if (e.ctrlKey) {
@@ -115,18 +114,24 @@ edit.onkeydown = function(e){
 		edit.scrollTop = scroll
 		return false
 		break
+	case "Enter":
+		updateLineNum()
+		break
 	}
-	updateLineNum()
 }
 
 var timeouter
-edit.onkeyup = function(){
+edit.onkeyup = function(e){
 	if(editor != user){
 		return
 	}
 	clearTimeout(timeouter)
 	timeouter = setTimeout(mem_send, 500)
-	updateLineNum()
+	switch(e.code){
+	case "Enter":
+		updateLineNum()
+		break
+	}
 }
 var linenum = document.getElementById("linenum")
 function updateLineNum(){
@@ -144,12 +149,13 @@ function updateLineNum(){
 	}
 }
 
+// 業表示の高さを合わせる
 edit.onclick = function(e){
 	linenum.style.height = edit.offsetHeight - 4 + "px"
 }
 edit.onmousemove = edit.onclick
 
-
+// 行表示のスクロール位置を同期させる
 edit.onscroll = function(e){
 	linenum.scrollTop = edit.scrollTop
 }
@@ -162,17 +168,6 @@ function assign_send(user_name){
 	xmlhttp.open("POST", "user/assign/push", true)
 	xmlhttp.send(user_name)
 }
-function assign_pull(){
-	var xmlhttp = new XMLHttpRequest()
-	xmlhttp.onload = function(){
-		var res = xmlhttp.responseText // 受信した文字列
-		editor = res
-		check_user_radio(editor)
-		editable(editor == user)
-	}
-	xmlhttp.open("GET", "user/assign/pull", true)
-	xmlhttp.send("")
-}
 function assign_wait(){
 	var xmlhttp = new XMLHttpRequest()
 	xmlhttp.onload = function(){
@@ -183,6 +178,7 @@ function assign_wait(){
 		assign_wait()
 	}
 	xmlhttp.open("GET", "user/assign/wait", true)
+	console.log(document.cookie)
 	xmlhttp.send("")
 
 }
@@ -217,7 +213,7 @@ function mem_wait(){
 		if(editor != user){
 			var res = xmlhttp.responseText // 受信した文字列
 			updateEdit(res)
-			console.log('sync wait')
+			console.log('mem_wait')
 		}
 		mem_wait()
 	}
@@ -225,7 +221,21 @@ function mem_wait(){
 	xmlhttp.send("")
 }
 
-const editable = (bool)=>{
+var users = document.getElementById("users")
+
+// ユーザー一覧をリアルタイム更新
+function users_wait(){
+	var xmlhttp = new XMLHttpRequest()
+	xmlhttp.onload = function(){
+		var res = xmlhttp.responseText // 受信した文字列
+		users.innerHTML = res
+		mem_wait()
+	}
+	xmlhttp.open("GET", "users/wait", true)
+	xmlhttp.send("")
+}
+
+function editable(bool){
 	edit.readOnly = !bool
 	assign_button.disabled = bool
 	if(bool){
@@ -236,10 +246,10 @@ const editable = (bool)=>{
 }
 
 function check_user_radio(p){
-	var users = document.getElementsByClassName("user")
-	for(let n = 0; n < users.length; n++){
-		if(users[n].value == p){
-			users[n].checked = true
+	var user_arr = document.getElementsByClassName("user")
+	for(let n = 0; n < user_arr.length; n++){
+		if(user_arr[n].value == p){
+			user_arr[n].checked = true
 		}
 	}
 }
