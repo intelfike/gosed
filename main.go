@@ -22,15 +22,24 @@ var (
 )
 
 var (
-	files        = map[string]*checkmodfile.File{}
-	editFiles    = map[string]*checkmodfile.File{}
-	masterText   []byte
-	prevText     []byte
-	mu           sync.Mutex
-	editor       = new(User)
-	editorChange bool
-	users        = map[string]*User{}
+	editFiles = map[string]*checkmodfile.File{}
+	mu        sync.Mutex
+	editor    = new(User)
+	users     = map[string]*User{}
+	app       = new(App)
 )
+
+type App struct {
+	Users  map[string]*User
+	Assign *User
+	Files  map[string]*File
+}
+
+type Fileｎ struct {
+	File   *checkmodfile.File
+	Cursor int
+	Scroll int
+}
 
 type User struct {
 	Name          string
@@ -53,29 +62,18 @@ func init() {
 		fmt.Println(err)
 		os.Exit(1)
 	}
-	// システム関係のファイルたち
-	files, err = checkmodfile.RegistFiles(
-		"data/index.html",
-		"data/style.css",
-		"data/script.js",
-		"NotoSansCJKjp-hinted/NotoSansMonoCJKjp-Regular.otf",
-	)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
 
 	// 呼びだされたファイルを提供する
+	// index.htmなどの編集ファイル一覧などの初期化は頑張る
 	handleFunc("/", http.MethodGet, func(w http.ResponseWriter, r *http.Request) {
 		uri := strings.Trim(r.RequestURI, "/")
 		if uri == "" {
 			uri = "data/index.html"
 		}
-		f, ok := files[uri]
-		if ok {
+		bb, err := Asset(uri)
+		if err == nil {
 			if uri == "data/index.html" {
 				// HTMLを加工してリターン
-				bb, err := f.GetBytes()
 				if err != nil {
 					fmt.Println("/ GetBytes error:", err)
 					return
@@ -89,11 +87,7 @@ func init() {
 				// cookieで届いたユーザー情報を記録
 				userName, err := getCookie(r, "user")
 				if err == nil {
-					users[userName] = &User{
-						Name:          userName,
-						UsersChanged:  true,
-						AssignChanged: true,
-					}
+					users[userName] = NewUser(userName)
 				}
 
 				// ファイルのリストを表示する
@@ -117,7 +111,7 @@ func init() {
 				w.Write([]byte(h))
 				return
 			}
-			f.WriteTo(w)
+			w.Write(bb)
 			return
 		}
 		ff, ok := editFiles[uri]
@@ -145,11 +139,7 @@ func init() {
 			mes = "Successful"
 			fmt.Println("regist user:", name)
 		}
-		users[name] = &User{
-			Name:          name,
-			UsersChanged:  true,
-			AssignChanged: true,
-		}
+		users[name] = NewUser(name)
 		w.Write([]byte(mes))
 	})
 
@@ -312,13 +302,31 @@ func init() {
 			// ユーザーのリストを表示する
 			html := ""
 			for k, _ := range users {
+				checked := ""
+				if k == editor.Name {
+					checked = " checked"
+				}
 				html += `<label>
-						<input type="radio" name="r1" class="user" value="` + k + `" onclick="assign_send('` + k + `')">` + k + `
+						<input type="radio" name="r1" class="user" value="` + k + `" onclick="assign_send('` + k + `')"` + checked + `>` + k + `
 						</label>`
 			}
 			w.Write([]byte(html))
 			break
 		}
+	})
+}
+
+func handleFunc(path, method string, handler func(http.ResponseWriter, *http.Request)) {
+	http.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
+		// if !strings.HasPrefix(r.RemoteAddr, "127.0.0.1") {
+		// 	fmt.Fprint(w, "あなたにアクセス権はありません！")
+		// 	return
+		// }
+		if r.Method != method {
+			fmt.Fprint(w, r.Method, " is bad method")
+			return
+		}
+		handler(w, r)
 	})
 }
 
@@ -334,19 +342,16 @@ func getCookie(r *http.Request, key string) (string, error) {
 	}
 	return data, nil
 }
-
-func handleFunc(path, method string, handler func(http.ResponseWriter, *http.Request)) {
-	http.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
-		// if !strings.HasPrefix(r.RemoteAddr, "127.0.0.1") {
-		// 	fmt.Fprint(w, "あなたにアクセス権はありません！")
-		// 	return
-		// }
-		if r.Method != method {
-			fmt.Fprint(w, r.Method, " is bad method")
-			return
-		}
-		handler(w, r)
-	})
+func NewUser(name string) *User {
+	user := &User{
+		Name:          name,
+		UsersChanged:  true,
+		AssignChanged: true,
+	}
+	if len(users) == 0 {
+		editor = user
+	}
+	return user
 }
 
 func main() {

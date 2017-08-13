@@ -1,3 +1,6 @@
-NotoMono-hinted/
-syntaxhighlighter/
-NotoSansCJKjp-hinted/
+data/NotoMono-hinted/
+data/syntaxhighlighter/
+data/NotoSansCJKjp-hinted/
+text
+tmp/
+

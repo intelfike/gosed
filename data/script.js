@@ -173,7 +173,6 @@ function assign_wait(){
 	xmlhttp.onload = function(){
 		var res = xmlhttp.responseText // 受信した文字列
 		editor = res
-		check_user_radio(editor)
 		editable(editor == user)
 		assign_wait()
 	}
@@ -242,14 +241,5 @@ function editable(bool){
 		edit.style.backgroundColor = "#FFD"
 	}else{
 		edit.style.backgroundColor = "#efefef"
-	}
-}
-
-function check_user_radio(p){
-	var user_arr = document.getElementsByClassName("user")
-	for(let n = 0; n < user_arr.length; n++){
-		if(user_arr[n].value == p){
-			user_arr[n].checked = true
-		}
 	}
 }
