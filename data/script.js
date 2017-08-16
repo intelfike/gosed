@@ -3,10 +3,10 @@ var user = ""
 // 初期化
 const init = ()=>{
 	editable(false)
+	users_wait()
 	assign_wait()
 	mem_pull()
 	mem_wait()
-	users_wait()
 	edit.onclick()
 	edit.focus()
 	updateLineNum()
@@ -68,7 +68,8 @@ function switch_file(obj){
 }
 
 var edit = document.getElementById("edit")
-function save(){
+async function save(){
+	await mem_send()
 	var xmlhttp = new XMLHttpRequest()
 	xmlhttp.onload = function(){
 		var res=xmlhttp.responseText // 受信した文字列
@@ -117,7 +118,11 @@ edit.onkeydown = function(e){
 	case "Enter":
 		updateLineNum()
 		break
+	case "Backspace":
+		updateLineNum()
+		break
 	}
+	console.log(e.code)
 }
 
 var timeouter
@@ -129,6 +134,9 @@ edit.onkeyup = function(e){
 	timeouter = setTimeout(mem_send, 500)
 	switch(e.code){
 	case "Enter":
+		updateLineNum()
+		break
+	case "Backspace":
 		updateLineNum()
 		break
 	}
@@ -172,6 +180,7 @@ function assign_wait(){
 	var xmlhttp = new XMLHttpRequest()
 	xmlhttp.onload = function(){
 		var res = xmlhttp.responseText // 受信した文字列
+		console.log(res, user)
 		editor = res
 		editable(editor == user)
 		assign_wait()
@@ -184,13 +193,17 @@ function assign_wait(){
 
 // 送ってメモリ上に保存・共有する
 function mem_send(){
-	// データを同期する
-	var xmlhttp = new XMLHttpRequest()
-	xmlhttp.onload = function(){
-		var res=xmlhttp.responseText // 受信した文字列
-	}
-	xmlhttp.open("POST", "mem/push", true)
-	xmlhttp.send(edit.value)
+	return new Promise(ok=>{
+		console.log('send')
+		// データを同期する
+		var xmlhttp = new XMLHttpRequest()
+		xmlhttp.onload = function(){
+			var res=xmlhttp.responseText // 受信した文字列
+		}
+		xmlhttp.open("POST", "mem/push", true)
+		xmlhttp.send(edit.value)
+		ok()
+	})
 }
 
 // 待たずに取ってくる
@@ -228,7 +241,7 @@ function users_wait(){
 	xmlhttp.onload = function(){
 		var res = xmlhttp.responseText // 受信した文字列
 		users.innerHTML = res
-		mem_wait()
+		users_wait()
 	}
 	xmlhttp.open("GET", "users/wait", true)
 	xmlhttp.send("")

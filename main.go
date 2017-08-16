@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -21,24 +22,32 @@ var (
 	port = flag.String("http", ":8888", "HTTP port number.")
 )
 
-var (
-	editFiles = map[string]*checkmodfile.File{}
-	mu        sync.Mutex
-	editor    = new(User)
-	users     = map[string]*User{}
-	app       = new(App)
-)
-
 type App struct {
-	Users  map[string]*User
+	Users  Users
 	Assign *User
 	Files  map[string]*File
 }
 
-type Fileｎ struct {
+type File struct {
+	Name   string
 	File   *checkmodfile.File
+	Mem    []byte
 	Cursor int
 	Scroll int
+}
+type FileMethods interface {
+	Update(string)
+	Save()
+}
+
+// ファイルのメモリ上データを更新する
+func (f *File) Update(b []byte) {
+	f.Mem = b
+}
+
+// メモリ上データをファイルに書き出す
+func (f *File) Save() {
+
 }
 
 type User struct {
@@ -48,6 +57,78 @@ type User struct {
 	UsersChanged  bool
 }
 
+func (u *User) Init() {
+	u.AssignChanged = true
+	u.UsersChanged = true
+	for k, _ := range u.MemChanged {
+		u.MemChanged[k] = true
+	}
+}
+
+type Users map[string]*User
+type UserMethods interface {
+	Add(string)
+	Remove(string)
+}
+
+// 新規ユーザーを作って追加する
+func (u Users) Add(name string) error {
+	for k, _ := range u {
+		if k == name {
+			return errors.New(name + ":既にそのユーザー名は使われています")
+		}
+	}
+	u.ChangedUsers()
+	user := &User{
+		Name:          name,
+		UsersChanged:  true,
+		AssignChanged: true,
+		MemChanged:    map[string]bool{},
+	}
+	u[name] = user
+	if len(u) == 1 {
+		u.Assign(name)
+	}
+	return nil
+}
+func (u Users) Assign(name string) error {
+	user, ok := u[name]
+	if !ok {
+		return errors.New(name + "そんなユーザはいません")
+	}
+	app.Assign = user
+	u.ChangedAssign()
+	return nil
+}
+func (u Users) ChangedUsers() {
+	for _, v := range u {
+		v.UsersChanged = true
+	}
+}
+func (u Users) ChangedAssign() {
+	for _, v := range u {
+		v.AssignChanged = true
+	}
+}
+func (u Users) ChangedMem(filename string) error {
+	for _, v := range u {
+		v.MemChanged[filename] = true
+	}
+	fmt.Println(app.Users)
+	return nil
+}
+
+var (
+	mu     sync.Mutex
+	editor = new(User)
+	// app.Users = map[string]*User{}
+	app = &App{
+		Users:  map[string]*User{},
+		Assign: &User{},
+		Files:  map[string]*File{},
+	}
+)
+
 func init() {
 	flag.Parse()
 	// ファイルが１つ以上指定されている
@@ -55,12 +136,14 @@ func init() {
 		fmt.Println("gosed [options] [files...]")
 		os.Exit(1)
 	}
-	var err error
 	// 編集対象のファイルたち
-	editFiles, err = checkmodfile.RegistFiles(os.Args[1:]...)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+	for _, v := range os.Args[1:] {
+		cmf, err := checkmodfile.RegistFile(v)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		app.Files[v] = &File{Name: v, File: cmf}
 	}
 
 	// 呼びだされたファイルを提供する
@@ -68,8 +151,9 @@ func init() {
 	handleFunc("/", http.MethodGet, func(w http.ResponseWriter, r *http.Request) {
 		uri := strings.Trim(r.RequestURI, "/")
 		if uri == "" {
-			uri = "data/index.html"
+			uri = "index.html"
 		}
+		uri = "data/" + uri
 		bb, err := Asset(uri)
 		if err == nil {
 			if uri == "data/index.html" {
@@ -85,15 +169,18 @@ func init() {
 				}
 
 				// cookieで届いたユーザー情報を記録
-				userName, err := getCookie(r, "user")
+				name, err := getCookie(r, "user")
 				if err == nil {
-					users[userName] = NewUser(userName)
+					err = app.Users.Add(name)
+					if err != nil {
+						app.Users[name].Init()
+					}
 				}
 
 				// ファイルのリストを表示する
 				html := ""
 				first := true
-				for k, _ := range editFiles {
+				for k, _ := range app.Files {
 					selected := ""
 					if first {
 						first = false
@@ -114,9 +201,9 @@ func init() {
 			w.Write(bb)
 			return
 		}
-		ff, ok := editFiles[uri]
+		ff, ok := app.Files[uri]
 		if ok {
-			ff.WriteTo(w)
+			ff.File.WriteTo(w)
 			return
 		}
 		fmt.Fprint(w, uri, " is not found")
@@ -133,13 +220,12 @@ func init() {
 			return
 		}
 		name := string(b)
-		_, ok := users[name]
 		mes := "Failed"
-		if !ok {
+		err = app.Users.Add(name)
+		if err == nil {
 			mes = "Successful"
 			fmt.Println("regist user:", name)
 		}
-		users[name] = NewUser(name)
 		w.Write([]byte(mes))
 	})
 
@@ -152,30 +238,30 @@ func init() {
 			return
 		}
 		name := string(b)
-		editor = users[name]
-		for _, v := range users {
-			v.AssignChanged = true
-		}
+		app.Users.Assign(name)
 		// editorChange = true
 		w.Write([]byte("Successful"))
 	})
 	handleFunc("/user/assign/wait", http.MethodGet, func(w http.ResponseWriter, r *http.Request) {
-		fmt.Println(r.Cookies())
 		name, err := getCookie(r, "user")
 		if err != nil {
 			fmt.Println("userのクッキーが正しくないです")
 			fmt.Fprint(w, "userのクッキーが正しくないです")
 			return
 		}
-		user := users[name]
+		user := app.Users[name]
 		// fmt.Println(users, name, user)
 		for {
-			time.Sleep(time.Second)
 			if !user.AssignChanged {
+				time.Sleep(time.Second)
 				continue
 			}
-			user.AssignChanged = false
-			w.Write([]byte(editor.Name))
+			go func() {
+				time.Sleep(time.Second)
+				user.AssignChanged = false
+			}()
+			w.Write([]byte(app.Assign.Name))
+			time.Sleep(time.Second / 2)
 			break
 		}
 	})
@@ -188,14 +274,15 @@ func init() {
 			fmt.Println("save error:", err)
 			return
 		}
-		f, ok := editFiles[file]
+		cmf, ok := app.Files[file]
 		if !ok {
 			fmt.Println(file, "そんなものはない")
 			return
 		}
-		f.CommitBody()
-		f.Save()
+		cmf.File.Save(cmf.Mem)
 		w.Write([]byte("Successful"))
+		fmt.Println("save", cmf.Name)
+		fmt.Println(string(cmf.Mem))
 	})
 
 	// 編集中のデータをメモリ上で共有する
@@ -213,16 +300,21 @@ func init() {
 			fmt.Println("/mem/push error:", err)
 			return
 		}
-		f, ok := editFiles[file]
+		cmf, ok := app.Files[file]
 		if !ok {
 			fmt.Println(file, "そんなものはない")
 			return
 		}
 		mu.Lock()
-		f.Body = b
+		cmf.Mem = b
 		mu.Unlock()
 		// メモリ情報を一時ファイルに書き出すのを並列して実行
 		name, err := getCookie(r, "user")
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		err = app.Users.ChangedMem(file)
 		if err != nil {
 			fmt.Println(err)
 			return
@@ -248,22 +340,32 @@ func init() {
 			fmt.Println("/mem/wait error:", err)
 			return
 		}
-		f, ok := editFiles[file]
+		cmf, ok := app.Files[file]
 		if !ok {
 			fmt.Println(file, "そんなものはない")
 			return
 		}
+		name, err := getCookie(r, "user")
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		user, ok := app.Users[name]
+		if !ok {
+			fmt.Println(name, "なんてユーザーはいない")
+			return
+		}
 		// comet
 		for {
-			if f.LatestBody() {
+			// fmt.Println("mem", user.MemChanged[cmf.Name])
+			if !user.MemChanged[cmf.Name] {
 				time.Sleep(time.Second / 2)
 				continue
 			}
-			w.Write(f.Body)
+			w.Write(cmf.Mem)
 			go func() {
-				time.Sleep(time.Second / 2)
-				// Bodyの変更をmasterに適用
-				f.CommitBody()
+				time.Sleep(time.Second)
+				user.MemChanged[cmf.Name] = false
 			}()
 			time.Sleep(time.Second / 5)
 			break
@@ -278,13 +380,13 @@ func init() {
 			fmt.Println("/mem/pull error:", err)
 			return
 		}
-		f, ok := editFiles[file]
+		cmf, ok := app.Files[file]
 		if !ok {
 			fmt.Fprint(w, file, "なんてない")
 			fmt.Println("/mem/pull error:", file, "なんてない")
 			return
 		}
-		w.Write(f.Body)
+		w.Write(cmf.File.Body)
 	})
 
 	handleFunc("/users/wait", http.MethodGet, func(w http.ResponseWriter, r *http.Request) {
@@ -293,24 +395,29 @@ func init() {
 			fmt.Println("/users/wait:", name)
 			return
 		}
-		user := users[name]
+		user := app.Users[name]
 		for {
-			time.Sleep(time.Second)
 			if !user.UsersChanged {
+				time.Sleep(time.Second)
 				continue
 			}
 			// ユーザーのリストを表示する
 			html := ""
-			for k, _ := range users {
+			for k, _ := range app.Users {
 				checked := ""
-				if k == editor.Name {
+				if k == app.Assign.Name {
 					checked = " checked"
 				}
 				html += `<label>
 						<input type="radio" name="r1" class="user" value="` + k + `" onclick="assign_send('` + k + `')"` + checked + `>` + k + `
 						</label>`
 			}
+			go func() {
+				time.Sleep(time.Second)
+				user.UsersChanged = false
+			}()
 			w.Write([]byte(html))
+			time.Sleep(time.Second / 2)
 			break
 		}
 	})
@@ -341,17 +448,6 @@ func getCookie(r *http.Request, key string) (string, error) {
 		return "", err
 	}
 	return data, nil
-}
-func NewUser(name string) *User {
-	user := &User{
-		Name:          name,
-		UsersChanged:  true,
-		AssignChanged: true,
-	}
-	if len(users) == 0 {
-		editor = user
-	}
-	return user
 }
 
 func main() {
