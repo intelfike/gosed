@@ -153,10 +153,9 @@ func init() {
 		if uri == "" {
 			uri = "index.html"
 		}
-		uri = "data/" + uri
-		bb, err := Asset(uri)
+		bb, err := Asset("data/" + uri)
 		if err == nil {
-			if uri == "data/index.html" {
+			if uri == "index.html" {
 				// cookieで届いたユーザー情報を記録
 				name, err := getCookie(r, "user")
 				if err == nil {
@@ -168,7 +167,7 @@ func init() {
 				}
 
 				// HTMLを加工してリターン
-				html, err := createOldHTML(w, bb)
+				html, err := createIndexHTML(bb)
 				if err != nil {
 					fmt.Println("Create error:", err)
 					return
@@ -188,7 +187,31 @@ func init() {
 		fmt.Println(uri, " is not found")
 		// fmt.Println(uri)
 	})
-
+	handleFunc("/edit/", http.MethodGet, func(w http.ResponseWriter, r *http.Request) {
+		uri := strings.Trim(r.RequestURI, "/")
+		uri = strings.TrimPrefix(uri, "edit/")
+		_, ok := app.Files[uri]
+		if !ok {
+			fmt.Fprintln(w, uri, "そのファイルは編集できません")
+			return
+		}
+		http.SetCookie(w, &http.Cookie{Name: "file", Value: uri})
+		b, err := Asset("data/edit.html")
+		if err != nil {
+			fmt.Println("なぜかdata/edit.htmlが見つからない")
+			return
+		}
+		w.Write(b)
+		// cookieで届いたユーザー情報を記録
+		name, err := getCookie(r, "user")
+		if err == nil {
+			err = app.Users.Add(name)
+			if err != nil {
+				// 画面再描画時にユーザーを未更新状態にする
+				app.Users[name].Init()
+			}
+		}
+	})
 	// ユーザー登録依頼
 	handleFunc("/user/regist", http.MethodPost, func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
@@ -457,13 +480,30 @@ func createOldHTML(w http.ResponseWriter, bb []byte) ([]byte, error) {
 	return []byte(h), err
 }
 
-func createIndexHTML(b []byte) ([]byte, error) {
-
-	return nil, nil
+func createIndexHTML(bb []byte) ([]byte, error) {
+	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(bb))
+	if err != nil {
+		fmt.Println("/ goquery doc error:", err)
+		return nil, err
+	}
+	// ファイルのリストを表示する
+	html := ""
+	for k, _ := range app.Files {
+		html += `<div>
+		<a class="file" href="/edit/` + k + `">` + k + `</a>
+		</div>` + "\n"
+	}
+	doc.Find("#files").SetHtml(html)
+	h, err := doc.Html()
+	if err != nil {
+		fmt.Print(err)
+		return nil, err
+	}
+	return []byte(h), nil
 }
 
-func createEditHTML() string {
-	return ""
+func createEditHTML(b []byte) ([]byte, error) {
+	return nil, nil
 }
 
 func main() {

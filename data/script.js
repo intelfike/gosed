@@ -45,7 +45,7 @@ function must_input_user(){
 		must_input_user()
 		return
 	}
-	xmlhttp.open("POST", "user/regist", true)
+	xmlhttp.open("POST", "/user/regist", true)
 	xmlhttp.send(user)
 }
 document.body.onload = must_input_user
@@ -74,7 +74,7 @@ async function save(){
 	xmlhttp.onload = function(){
 		var res=xmlhttp.responseText // 受信した文字列
 	}
-	xmlhttp.open("POST", "save", true)
+	xmlhttp.open("POST", "/save", true)
 	// xmlhttp.setRequestHeader('Content-Type','application/x-www-form-urlencoded')
 	xmlhttp.send("")
 }
@@ -173,7 +173,7 @@ function assign_send(user_name){
 	xmlhttp.onload = function(){
 		var res=xmlhttp.responseText // 受信した文字列
 	}
-	xmlhttp.open("POST", "user/assign/push", true)
+	xmlhttp.open("POST", "/user/assign/push", true)
 	xmlhttp.send(user_name)
 }
 function assign_wait(){
@@ -185,7 +185,7 @@ function assign_wait(){
 		editable(editor == user)
 		assign_wait()
 	}
-	xmlhttp.open("GET", "user/assign/wait", true)
+	xmlhttp.open("GET", "/user/assign/wait", true)
 	console.log(document.cookie)
 	xmlhttp.send("")
 
@@ -200,7 +200,7 @@ function mem_send(){
 		xmlhttp.onload = function(){
 			var res=xmlhttp.responseText // 受信した文字列
 		}
-		xmlhttp.open("POST", "mem/push", true)
+		xmlhttp.open("POST", "/mem/push", true)
 		xmlhttp.send(edit.value)
 		ok()
 	})
@@ -214,7 +214,7 @@ function mem_pull(){
 		updateEdit(res)
 		updateLineNum()
 	}
-	xmlhttp.open("GET", "mem/pull", true)
+	xmlhttp.open("GET", "/mem/pull", true)
 	xmlhttp.send("pull")
 }
 
@@ -229,7 +229,7 @@ function mem_wait(){
 		}
 		mem_wait()
 	}
-	xmlhttp.open("GET", "mem/wait", true)
+	xmlhttp.open("GET", "/mem/wait", true)
 	xmlhttp.send("")
 }
 
@@ -243,7 +243,7 @@ function users_wait(){
 		users.innerHTML = res
 		users_wait()
 	}
-	xmlhttp.open("GET", "users/wait", true)
+	xmlhttp.open("GET", "/users/wait", true)
 	xmlhttp.send("")
 }
 
