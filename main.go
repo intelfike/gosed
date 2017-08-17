@@ -195,7 +195,7 @@ func init() {
 			fmt.Fprintln(w, uri, "そのファイルは編集できません")
 			return
 		}
-		http.SetCookie(w, &http.Cookie{Name: "file", Value: uri})
+		http.SetCookie(w, &http.Cookie{Name: "file", Value: uri, Path: "/"})
 		b, err := Asset("data/edit.html")
 		if err != nil {
 			fmt.Println("なぜかdata/edit.htmlが見つからない")

@@ -2,6 +2,8 @@ var editor = ""
 var user = ""
 // 初期化
 const init = ()=>{
+	user = localStorage.getItem('user')
+	
 	editable(false)
 	users_wait()
 	assign_wait()
@@ -12,59 +14,12 @@ const init = ()=>{
 	updateLineNum()
 }
 
-function must_input_user(){
-	user = localStorage.getItem('user')
-	if(user != null){
-		document.cookie = "user="+encodeURIComponent(user)
-		init()
-		return
-	}
-	user = window.prompt("ユーザー名を入力してください")
-	if(user == null){
-		setTimeout(must_input_user, 1000)
-		return
-	}
-	console.log(user)
-	user = user.trim(' ')
-	user = user.trim(' ')
-	if(user == ''){
-		must_input_user()
-		return
-	}
-	var xmlhttp = new XMLHttpRequest()
-	xmlhttp.onload = function(){
-		var res=xmlhttp.responseText // 受信した文字列
-		console.log(res)
-		if(res == "Successful"){
-			localStorage.setItem('user', user)
-			console.log("user=" + encodeURIComponent(user))
-			document.cookie = "user="+encodeURIComponent(user)
-			init()
-			return
-		}
-		must_input_user()
-		return
-	}
-	xmlhttp.open("POST", "/user/regist", true)
-	xmlhttp.send(user)
-}
-document.body.onload = must_input_user
+document.body.onload = init
 
 var assign_button = document.getElementById('assign')
 assign_button.onclick = ()=>{
 	// 自分自身に権限を割り当てる必要がある
 	assign_send(user)
-}
-
-// ファイルの表示を切り替える
-function switch_file(obj){
-	document.cookie = "file="+encodeURIComponent(obj.innerText)
-	files = document.getElementsByClassName('file')
-	for(let n = 0; n < files.length; n++){
-		files[n].id = ""
-	}
-	obj.id = "selected"
-	mem_pull()
 }
 
 var edit = document.getElementById("edit")
@@ -180,7 +135,7 @@ function assign_wait(){
 	var xmlhttp = new XMLHttpRequest()
 	xmlhttp.onload = function(){
 		var res = xmlhttp.responseText // 受信した文字列
-		console.log(res, user)
+		console.log("=======",res, "===", user)
 		editor = res
 		editable(editor == user)
 		assign_wait()

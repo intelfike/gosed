@@ -6,7 +6,7 @@
 <style>
 @font-face {
 	font-family: 'NotoSansMono';
-	src: url('NotoMono-hinted/NotoMono-Regular.ttf');
+	src: url('/NotoMono-hinted/NotoMono-Regular.ttf');
 }
 
 body{font-family:NotoSansMono;}
@@ -22,4 +22,46 @@ main{margin: 8px;}
 		<div id="files"></div>
 	</main>
 </body>
+
+<script>
+function init(){}
+function must_input_user(){
+	user = localStorage.getItem('user')
+	if(user != null){
+		document.cookie = "user="+encodeURIComponent(user)
+		init()
+		return
+	}
+	user = window.prompt("ユーザー名を入力してください")
+	if(user == null){
+		setTimeout(must_input_user, 1000)
+		return
+	}
+	console.log(user)
+	user = user.trim(' ')
+	user = user.trim(' ')
+	if(user == ''){
+		must_input_user()
+		return
+	}
+	var xmlhttp = new XMLHttpRequest()
+	xmlhttp.onload = function(){
+		var res=xmlhttp.responseText // 受信した文字列
+		console.log(res)
+		if(res == "Successful"){
+			localStorage.setItem('user', user)
+			console.log("user=" + encodeURIComponent(user))
+			document.cookie = "user="+encodeURIComponent(user)
+			init()
+			return
+		}
+		must_input_user()
+		return
+	}
+	xmlhttp.open("POST", "/user/regist", true)
+	xmlhttp.send(user)
+}
+document.body.onload = must_input_user
+</script>
+
 </html>
