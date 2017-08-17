@@ -157,45 +157,23 @@ func init() {
 		bb, err := Asset(uri)
 		if err == nil {
 			if uri == "data/index.html" {
-				// HTMLを加工してリターン
-				if err != nil {
-					fmt.Println("/ GetBytes error:", err)
-					return
-				}
-				doc, err := goquery.NewDocumentFromReader(bytes.NewReader(bb))
-				if err != nil {
-					fmt.Println("/ doc error:", err)
-					return
-				}
-
 				// cookieで届いたユーザー情報を記録
 				name, err := getCookie(r, "user")
 				if err == nil {
 					err = app.Users.Add(name)
 					if err != nil {
+						// 画面再描画時にユーザーを未更新状態にする
 						app.Users[name].Init()
 					}
 				}
 
-				// ファイルのリストを表示する
-				html := ""
-				first := true
-				for k, _ := range app.Files {
-					selected := ""
-					if first {
-						first = false
-						http.SetCookie(w, &http.Cookie{Name: "file", Value: k})
-						selected = ` id="selected"`
-					}
-					html += `<div class="file" onclick="switch_file(this)"` + selected + `>` + k + `</div>` + "\n"
-				}
-				doc.Find("#files").SetHtml(html)
-				h, err := doc.Html()
+				// HTMLを加工してリターン
+				html, err := createOldHTML(w, bb)
 				if err != nil {
-					fmt.Print(err)
+					fmt.Println("Create error:", err)
 					return
 				}
-				w.Write([]byte(h))
+				w.Write(html)
 				return
 			}
 			w.Write(bb)
@@ -448,6 +426,44 @@ func getCookie(r *http.Request, key string) (string, error) {
 		return "", err
 	}
 	return data, nil
+}
+
+func createOldHTML(w http.ResponseWriter, bb []byte) ([]byte, error) {
+	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(bb))
+	if err != nil {
+		fmt.Println("/ doc error:", err)
+		return nil, err
+	}
+
+	// ファイルのリストを表示する
+	html := ""
+	first := true
+	for k, _ := range app.Files {
+		selected := ""
+		if first {
+			// とりあえず表示したいファイル
+			first = false
+			http.SetCookie(w, &http.Cookie{Name: "file", Value: k})
+			selected = ` id="selected"`
+		}
+		html += `<div class="file" onclick="switch_file(this)"` + selected + `>` + k + `</div>` + "\n"
+	}
+	doc.Find("#files").SetHtml(html)
+	h, err := doc.Html()
+	if err != nil {
+		fmt.Print(err)
+		return nil, err
+	}
+	return []byte(h), err
+}
+
+func createIndexHTML(b []byte) ([]byte, error) {
+
+	return nil, nil
+}
+
+func createEditHTML() string {
+	return ""
 }
 
 func main() {
