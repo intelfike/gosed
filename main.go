@@ -201,7 +201,12 @@ func init() {
 			fmt.Println("なぜかdata/edit.htmlが見つからない")
 			return
 		}
-		w.Write(b)
+		html, err := createEditHTML(b, uri)
+		if err != nil {
+			fmt.Println("EditのHTML生成エラー: ", err)
+			return
+		}
+		w.Write([]byte(html))
 		// cookieで届いたユーザー情報を記録
 		name, err := getCookie(r, "user")
 		if err == nil {
@@ -489,9 +494,9 @@ func createIndexHTML(bb []byte) ([]byte, error) {
 	// ファイルのリストを表示する
 	html := ""
 	for k, _ := range app.Files {
-		html += `<div>
+		html += `<li>
 		<a class="file" href="/edit/` + k + `">` + k + `</a>
-		</div>` + "\n"
+		</li>` + "\n"
 	}
 	doc.Find("#files").SetHtml(html)
 	h, err := doc.Html()
@@ -502,8 +507,14 @@ func createIndexHTML(bb []byte) ([]byte, error) {
 	return []byte(h), nil
 }
 
-func createEditHTML(b []byte) ([]byte, error) {
-	return nil, nil
+func createEditHTML(b []byte, filename string) ([]byte, error) {
+	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(b))
+	if err != nil {
+		return nil, err
+	}
+	doc.Find("title").SetText(filename)
+	html, _ := doc.Html()
+	return []byte(html), nil
 }
 
 func main() {
