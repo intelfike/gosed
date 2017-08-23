@@ -2,69 +2,126 @@
 <html lang="en">
 <head>
 	<meta charset="UTF-8">
-	<title>gosed</title>
+	<title>gosed HOME</title>
 <style>
 @font-face {
 	font-family: 'NotoSansMono';
 	src: url('/NotoMono-hinted/NotoMono-Regular.ttf');
 }
 
-body{font-family:NotoSansMono;}
+body{font-family:NotoSansMono;
+background-color: #DEF;}
 
 /*header{display: flex;}*/
+header{margin: 8px;}
 main{margin: 8px;}
+
+h2{background: url('favicon.ico'); background-size: contain; background-repeat:no-repeat;
+	padding-left: 48px;}
+	
+.under_h2{background-color:#FFF; padding:8px;}
+
+#login{background-color: #00F;color:#FFF;}
+#logout{background-color: #FF0;}
 </style>
 </head>
 <body>
 	<h1>gosed</h1>
 	<header>
+		<section>
+			<h2>ユーザー</h2>
+			<div class="under_h2" id="account">
+				<div id="logout_form" style="display: none;">
+					<h3>ユーザーを削除</h3>
+					あなたの名前: <input type="text" id="user_name" readonly>
+					<button id="logout">ログアウト</button>
+				</div>
+				<div id="login_form" style="display: none;">
+					<h3>ユーザーを登録</h3>
+					<input type="text" placeholder="ユーザー名" id="input_user_name">
+					<button id="login">ログイン</button>
+				</div>
+			</div>
+		</section>
 	</header>
-	<h2>編集可能なファイル</h2>
 	<main>
-		<ul id="files"></ul>
-		<!-- <div id="files"></div> -->
+		<section>
+			<h2>ファイル一覧</h2>
+			<div class="under_h2" id="file_list">
+				<ul id="files">
+					<!-- ここにファイルのリストを表示 -->
+				</ul>
+			</div>
+		</section>
 	</main>
 </body>
 
 <script>
-function init(){}
-function must_input_user(){
-	user = localStorage.getItem('user')
-	if(user != null){
-		document.cookie = "user="+encodeURIComponent(user)
-		init()
-		return
+function init(){
+	document.getElementById('user_name').value = localStorage.getItem('user')
+	form_type(logined())
+}
+document.body.onload = init
+
+var logout_form = document.getElementById('logout_form')
+var login_form = document.getElementById('login_form')
+function form_type(bool){
+	if(bool){
+		login.disabled = true
+		logout.disabled = false
+		logout_form.style.display = "block"
+		login_form.style.display = "none"
+	}else{
+		login.disabled = false
+		logout.disabled = true
+		logout_form.style.display = "none"
+		login_form.style.display = "block"		
 	}
-	user = window.prompt("ユーザー名を入力してください")
-	if(user == null){
-		setTimeout(must_input_user, 1000)
-		return
-	}
+}
+
+function logined(){
+	return localStorage.getItem('user') != null
+}
+
+var logout = document.getElementById('logout')
+logout.onclick = async ()=>{
+	await ajax('POST', 'user/delete', localStorage.getItem('user'))
+	localStorage.removeItem('user')
+	document.cookie = "user="
+	form_type(false)
+}
+
+var login = document.getElementById('login')
+login.onclick = async ()=>{
+	var user = document.getElementById('input_user_name').value
 	console.log(user)
 	user = user.trim(' ')
-	user = user.trim(' ')
+	user = user.trim('　')
 	if(user == ''){
-		must_input_user()
+		alert('ユーザー名を入力してください')
 		return
 	}
-	var xmlhttp = new XMLHttpRequest()
-	xmlhttp.onload = function(){
-		var res=xmlhttp.responseText // 受信した文字列
-		console.log(res)
-		if(res == "Successful"){
-			localStorage.setItem('user', user)
-			console.log("user=" + encodeURIComponent(user))
-			document.cookie = "user="+encodeURIComponent(user)
-			init()
-			return
-		}
-		must_input_user()
+	var resp = await ajax('POST', '/user/regist', user)
+	console.log(resp)
+	if(resp != 'Successful'){
+		alert("ユーザー名が重複しています。")
 		return
 	}
-	xmlhttp.open("POST", "/user/regist", true)
-	xmlhttp.send(user)
+	form_type(true)
+	localStorage.setItem('user', user)
+	document.cookie = "user="+encodeURIComponent(user)
+	document.getElementById('user_name').value = user
 }
-document.body.onload = must_input_user
-</script>
 
+function ajax(method, action, data){
+	return new Promise(ok => {
+		var aj = new XMLHttpRequest()
+		aj.open(method, action)
+		aj.onload = ()=>{
+			 ok(aj.responseText)
+		}
+		aj.send(data)
+	})
+}
+</script>
 </html>

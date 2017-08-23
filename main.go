@@ -40,16 +40,6 @@ type FileMethods interface {
 	Save()
 }
 
-// ファイルのメモリ上データを更新する
-func (f *File) Update(b []byte) {
-	f.Mem = b
-}
-
-// メモリ上データをファイルに書き出す
-func (f *File) Save() {
-
-}
-
 type User struct {
 	Name          string
 	AssignChanged bool
@@ -73,10 +63,8 @@ type UserMethods interface {
 
 // 新規ユーザーを作って追加する
 func (u Users) Add(name string) error {
-	for k, _ := range u {
-		if k == name {
-			return errors.New(name + ":既にそのユーザー名は使われています")
-		}
+	if u.Exists(name) {
+		return errors.New(name + ":既にそのユーザー名は使われています")
 	}
 	u.ChangedUsers()
 	user := &User{
@@ -90,6 +78,18 @@ func (u Users) Add(name string) error {
 		u.Assign(name)
 	}
 	return nil
+}
+func (u Users) Remove(name string) error {
+	if !u.Exists(name) {
+		return errors.New(name + ":その名前のユーザーはないので削除できません")
+	}
+	u.ChangedUsers()
+	delete(u, name)
+	return nil
+}
+func (u Users) Exists(name string) bool {
+	_, ok := u[name]
+	return ok
 }
 func (u Users) Assign(name string) error {
 	user, ok := u[name]
@@ -188,6 +188,20 @@ func init() {
 		// fmt.Println(uri)
 	})
 	handleFunc("/edit/", http.MethodGet, func(w http.ResponseWriter, r *http.Request) {
+		fmt.Println(app.Users)
+		// cookieで届いたユーザー情報を記録
+		name, err := getCookie(r, "user")
+		if err == nil && name != "" {
+			err = app.Users.Add(name)
+			if err != nil {
+				// 画面再描画時にユーザーを未更新状態にする
+				app.Users[name].Init()
+			}
+		} else {
+			fmt.Fprintln(w, "ログインしてください")
+			return
+		}
+
 		uri := strings.Trim(r.RequestURI, "/")
 		uri = strings.TrimPrefix(uri, "edit/")
 		_, ok := app.Files[uri]
@@ -201,21 +215,12 @@ func init() {
 			fmt.Println("なぜかdata/edit.htmlが見つからない")
 			return
 		}
-		html, err := createEditHTML(b, uri)
+		// html, err := createEditHTML(b, uri)
 		if err != nil {
 			fmt.Println("EditのHTML生成エラー: ", err)
 			return
 		}
-		w.Write([]byte(html))
-		// cookieで届いたユーザー情報を記録
-		name, err := getCookie(r, "user")
-		if err == nil {
-			err = app.Users.Add(name)
-			if err != nil {
-				// 画面再描画時にユーザーを未更新状態にする
-				app.Users[name].Init()
-			}
-		}
+		w.Write(b)
 	})
 	// ユーザー登録依頼
 	handleFunc("/user/regist", http.MethodPost, func(w http.ResponseWriter, r *http.Request) {
@@ -231,6 +236,23 @@ func init() {
 		if err == nil {
 			mes = "Successful"
 			fmt.Println("regist user:", name)
+		}
+		w.Write([]byte(mes))
+	})
+
+	handleFunc("/user/delete", http.MethodPost, func(w http.ResponseWriter, r *http.Request) {
+		defer r.Body.Close()
+		b, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		name := string(b)
+		mes := "Failed"
+		err = app.Users.Remove(name)
+		if err == nil {
+			mes = "Successful"
+			fmt.Println("delete user:", name)
 		}
 		w.Write([]byte(mes))
 	})
@@ -263,7 +285,7 @@ func init() {
 				continue
 			}
 			go func() {
-				time.Sleep(time.Second)
+				// time.Sleep(time.Second)
 				user.AssignChanged = false
 			}()
 			w.Write([]byte(app.Assign.Name))
@@ -370,7 +392,7 @@ func init() {
 			}
 			w.Write(cmf.Mem)
 			go func() {
-				time.Sleep(time.Second)
+				// time.Sleep(time.Second)
 				user.MemChanged[cmf.Name] = false
 			}()
 			time.Sleep(time.Second / 5)
@@ -415,11 +437,11 @@ func init() {
 					checked = " checked"
 				}
 				html += `<label>
-						<input type="radio" name="r1" class="user" value="` + k + `" onclick="assign_send('` + k + `')"` + checked + `>` + k + `
+						<input type="radio" name="r1" class="user" id="` + k + `" value="` + k + `" onclick="assign_send('` + k + `')"` + checked + `>` + k + `
 						</label>`
 			}
 			go func() {
-				time.Sleep(time.Second)
+				// time.Sleep(time.Second)
 				user.UsersChanged = false
 			}()
 			w.Write([]byte(html))
@@ -454,35 +476,6 @@ func getCookie(r *http.Request, key string) (string, error) {
 		return "", err
 	}
 	return data, nil
-}
-
-func createOldHTML(w http.ResponseWriter, bb []byte) ([]byte, error) {
-	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(bb))
-	if err != nil {
-		fmt.Println("/ doc error:", err)
-		return nil, err
-	}
-
-	// ファイルのリストを表示する
-	html := ""
-	first := true
-	for k, _ := range app.Files {
-		selected := ""
-		if first {
-			// とりあえず表示したいファイル
-			first = false
-			http.SetCookie(w, &http.Cookie{Name: "file", Value: k})
-			selected = ` id="selected"`
-		}
-		html += `<div class="file" onclick="switch_file(this)"` + selected + `>` + k + `</div>` + "\n"
-	}
-	doc.Find("#files").SetHtml(html)
-	h, err := doc.Html()
-	if err != nil {
-		fmt.Print(err)
-		return nil, err
-	}
-	return []byte(h), err
 }
 
 func createIndexHTML(bb []byte) ([]byte, error) {

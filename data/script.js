@@ -3,6 +3,12 @@ var user = ""
 // 初期化
 const init = ()=>{
 	user = localStorage.getItem('user')
+	var file = document.cookie.match(/file=[^\s;]+/g)
+	if(file.length != 1){
+		alert("ファイル指定のcookieが正しくありません")
+		return
+	}
+	document.title = file[0].substring(5)
 	
 	editable(false)
 	users_wait()
@@ -25,13 +31,7 @@ assign_button.onclick = ()=>{
 var edit = document.getElementById("edit")
 async function save(){
 	await mem_send()
-	var xmlhttp = new XMLHttpRequest()
-	xmlhttp.onload = function(){
-		var res=xmlhttp.responseText // 受信した文字列
-	}
-	xmlhttp.open("POST", "/save", true)
-	// xmlhttp.setRequestHeader('Content-Type','application/x-www-form-urlencoded')
-	xmlhttp.send("")
+	await ajax('POST', '/save')
 }
 // テキストを更新するときはこれを使う
 function updateEdit(text){
@@ -97,8 +97,12 @@ edit.onkeyup = function(e){
 	}
 }
 var linenum = document.getElementById("linenum")
+var prevlen = 0
 function updateLineNum(){
 	len = (edit.value.match(/\n/g)||[]).length+1
+	if(prevlen == len){
+		return
+	}
 	linenum.innerHTML = ''
 	maxlen = (len + '').length
 	for(let n = 1; n <= len; n++){
@@ -110,6 +114,7 @@ function updateLineNum(){
 		}
 		linenum.innerHTML += '<div class="num">'+num+'</div>'
 	}
+	prevlen = len
 }
 
 // 業表示の高さを合わせる
@@ -124,82 +129,45 @@ edit.onscroll = function(e){
 }
 
 function assign_send(user_name){
-	var xmlhttp = new XMLHttpRequest()
-	xmlhttp.onload = function(){
-		var res=xmlhttp.responseText // 受信した文字列
-	}
-	xmlhttp.open("POST", "/user/assign/push", true)
-	xmlhttp.send(user_name)
+	ajax("POST", "/user/assign/push", user_name)
 }
-function assign_wait(){
-	var xmlhttp = new XMLHttpRequest()
-	xmlhttp.onload = function(){
-		var res = xmlhttp.responseText // 受信した文字列
-		console.log("=======",res, "===", user)
-		editor = res
-		editable(editor == user)
-		assign_wait()
-	}
-	xmlhttp.open("GET", "/user/assign/wait", true)
-	console.log(document.cookie)
-	xmlhttp.send("")
-
+async function assign_wait(){	
+	var res = await ajax("GET", "/user/assign/wait")
+	console.log("=======",res, "===", user)
+	editor = res
+	editable(editor == user)
+	check_user(editor)
+	assign_wait()
 }
 
 // 送ってメモリ上に保存・共有する
 function mem_send(){
-	return new Promise(ok=>{
-		console.log('send')
-		// データを同期する
-		var xmlhttp = new XMLHttpRequest()
-		xmlhttp.onload = function(){
-			var res=xmlhttp.responseText // 受信した文字列
-		}
-		xmlhttp.open("POST", "/mem/push", true)
-		xmlhttp.send(edit.value)
-		ok()
-	})
+	ajax("POST", "/mem/push", edit.value)
 }
 
 // 待たずに取ってくる
-function mem_pull(){
-	var xmlhttp = new XMLHttpRequest()
-	xmlhttp.onload = function(){
-		var res = xmlhttp.responseText // 受信した文字列
-		updateEdit(res)
-		updateLineNum()
-	}
-	xmlhttp.open("GET", "/mem/pull", true)
-	xmlhttp.send("pull")
+async function mem_pull(){
+	var res = await ajax("GET", "/mem/pull", 'pull')
+	updateEdit(res)
+	updateLineNum()
 }
 
-//
-function mem_wait(){
-	var xmlhttp = new XMLHttpRequest()
-	xmlhttp.onload = function(){
-		if(editor != user){
-			var res = xmlhttp.responseText // 受信した文字列
-			updateEdit(res)
-			console.log('mem_wait')
-		}
-		mem_wait()
+async function mem_wait(){
+	var res = await ajax("GET", "/mem/wait", 'pull')
+	if(editor != user){
+		updateEdit(res)
+		console.log('mem_wait')
 	}
-	xmlhttp.open("GET", "/mem/wait", true)
-	xmlhttp.send("")
+	mem_wait()
 }
 
 var users = document.getElementById("users")
 
 // ユーザー一覧をリアルタイム更新
-function users_wait(){
-	var xmlhttp = new XMLHttpRequest()
-	xmlhttp.onload = function(){
-		var res = xmlhttp.responseText // 受信した文字列
-		users.innerHTML = res
-		users_wait()
-	}
-	xmlhttp.open("GET", "/users/wait", true)
-	xmlhttp.send("")
+async function users_wait(){
+	var res = await ajax("GET", "/users/wait", 'pull')
+	users.innerHTML = res
+	users_wait()
 }
 
 function editable(bool){
@@ -210,4 +178,19 @@ function editable(bool){
 	}else{
 		edit.style.backgroundColor = "#efefef"
 	}
+}
+
+function check_user(name){
+	document.getElementById(name).checked = true
+}
+
+function ajax(method, action, data){
+	return new Promise(ok => {
+		var aj = new XMLHttpRequest()
+		aj.open(method, action)
+		aj.onload = ()=>{
+			 ok(aj.responseText)
+		}
+		aj.send(data)
+	})
 }
